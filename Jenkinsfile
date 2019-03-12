@@ -2,6 +2,9 @@ pipeline {
     agent { dockerfile true }
     stages {
         stage('Build') {
+            env {
+                PBR_VERSION=readVersion()
+            }
             steps {
                 sh 'python setup.py sdist bdist_wheel'
             }
@@ -39,4 +42,8 @@ pipeline {
             slackSend(color: '#D41519', message: "FAILED: <${env.BUILD_URL}|${env.JOB_NAME}#${env.BUILD_NUMBER}>")
         }
     }
+}
+
+String getVersion() {
+    return readFile('pureport.version').trim()
 }
