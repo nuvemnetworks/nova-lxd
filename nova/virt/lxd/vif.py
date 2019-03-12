@@ -23,7 +23,7 @@ from nova.network import model as network_model
 from nova.network import os_vif_util
 
 import os_vif
-
+from vif_plug_ovs import linux_net as linux_net_ovs
 
 CONF = conf.CONF
 
@@ -120,7 +120,7 @@ def _post_plug_wiring_veth_and_bridge(instance, vif):
         _create_veth_pair(v1_name, v2_name, mtu)
         if _is_ovs_vif_port(vif):
             # NOTE(jamespage): wire tap device directly to ovs bridge
-            linux_net.create_ovs_vif_port(vif['network']['bridge'],
+            linux_net_ovs.create_ovs_vif_port(vif['network']['bridge'],
                                           v1_name,
                                           vif['id'],
                                           vif['address'],
@@ -165,7 +165,7 @@ def _post_unplug_wiring_delete_veth(instance, vif):
     v1_name = get_vif_devname(vif)
     try:
         if _is_ovs_vif_port(vif):
-            linux_net.delete_ovs_vif_port(vif['network']['bridge'],
+            linux_net_ovs.delete_ovs_vif_port(vif['network']['bridge'],
                                           v1_name, True)
         else:
             linux_net.delete_net_dev(v1_name)
