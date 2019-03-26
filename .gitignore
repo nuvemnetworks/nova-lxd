@@ -56,3 +56,6 @@ ChangeLog
 .*sw?
 
 cover
+
+# Generated patch file
+nova-lxd.patch
