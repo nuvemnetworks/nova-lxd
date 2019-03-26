@@ -36,6 +36,14 @@ def _base_config(instance, _):
     }
 
 
+def _boot(instance, _):
+    """ Pureport - PE-685: Don't allow LXD to auto-reboot instance on server start
+    In the future, this could be configurable from properties either of the
+    instance or the client.
+    """
+    return { 'boot.autostart': '0' }
+
+
 def _nesting(instance, _):
     if instance.flavor.extra_specs.get('lxd:nested_allowed'):
         return {'security.nesting': 'True'}
@@ -71,6 +79,7 @@ def _isolated(instance, client):
 
 _CONFIG_FILTER_MAP = [
     _base_config,
+    _boot,
     _nesting,
     _security,
     _memory,
