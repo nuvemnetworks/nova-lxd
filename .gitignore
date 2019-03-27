@@ -58,4 +58,4 @@ ChangeLog
 cover
 
 # Generated patch file
-nova-lxd.patch
+nova-lxd.patch.tar.gz
