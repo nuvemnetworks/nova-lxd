@@ -1325,7 +1325,7 @@ class LXDDriver(driver.ComputeDriver):
     def _migrate(self, source_host, instance):
         """Migrate an instance from source."""
         source_client = pylxd.Client(
-                endpoint='https://{}:8443'.format(source_host), verify=False)
+            endpoint='https://{}:8443'.format(source_host), verify=False)
         container = source_client.containers.get(instance.name)
         data = container.generate_migration_data()
 
