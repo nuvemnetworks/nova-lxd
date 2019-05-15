@@ -411,7 +411,7 @@ class LXDDriver(driver.ComputeDriver):
 
     capabilities = {
         "has_imagecache": False,
-        "supports_recreate": False,
+        "supports_recreate": True,
         "supports_migrate_to_same_host": False,
         "supports_attach_interface": True,
         "supports_multiattach": False,
@@ -1132,13 +1132,13 @@ class LXDDriver(driver.ComputeDriver):
 
         # Step 3 - Start the network and container
         self.plug_vifs(instance, network_info)
-        self.client.container.get(instance.name).start(wait=True)
+        self.client.containers.get(instance.name).start(wait=True)
 
-    def confirm_migration(self, migration, instance, network_info):
+    def confirm_migration(self, context, migration, instance, network_info):
         self.unplug_vifs(instance, network_info)
 
-        self.client.profiles.get(instance.name).delete()
         self.client.containers.get(instance.name).delete(wait=True)
+        self.client.profiles.get(instance.name).delete()
 
     def finish_revert_migration(self, context, instance, network_info,
                                 block_device_info=None, power_on=True):
@@ -1325,8 +1325,8 @@ class LXDDriver(driver.ComputeDriver):
     def _migrate(self, source_host, instance):
         """Migrate an instance from source."""
         source_client = pylxd.Client(
-            endpoint='https://{}'.format(source_host), verify=False)
+                endpoint='https://{}:8443'.format(source_host), verify=False)
         container = source_client.containers.get(instance.name)
         data = container.generate_migration_data()
 
-        self.containers.create(data, wait=True)
+        self.client.containers.create(data, wait=True)
