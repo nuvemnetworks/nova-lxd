@@ -32,7 +32,7 @@ def attach_ephemeral(client, block_device_info, lxd_config, instance):
     if ephemeral_storage:
         storage_driver = lxd_config['environment']['storage']
 
-        container = client.containers.get(instance.name)
+        container = common.get_container(client, instance)
         container_id_map = container.config[
             'volatile.last_state.idmap'].split(',')
         storage_id = container_id_map[2].split(':')[1]
@@ -64,7 +64,7 @@ def attach_ephemeral(client, block_device_info, lxd_config, instance):
                 # before the container starts.
                 storage_dir = os.path.join(
                     instance_attrs.container_path, ephemeral['virtual_name'])
-                profile = client.profiles.get(instance.name)
+                profile = common.get_profile(client, instance)
                 storage_name = ephemeral['virtual_name']
                 profile.devices[storage_name]['source'] = storage_dir
                 profile.save()

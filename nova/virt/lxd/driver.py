@@ -462,7 +462,7 @@ class LXDDriver(driver.ComputeDriver):
     def get_info(self, instance):
         """Return an InstanceInfo object for the instance."""
         try:
-            container = self.client.containers.get(instance.name)
+            container = common.get_container(self.client, instance)
         except lxd_exceptions.NotFound:
             raise exception.InstanceNotFound(instance_id=instance.uuid)
 
@@ -488,7 +488,7 @@ class LXDDriver(driver.ComputeDriver):
         information.
         """
         try:
-            self.client.containers.get(instance.name)
+            common.get_container(self.client, instance)
             raise exception.InstanceExists(name=instance.name)
         except lxd_exceptions.LXDAPIException as e:
             if e.response.status_code != 404:
@@ -568,7 +568,7 @@ class LXDDriver(driver.ComputeDriver):
                 injected_files, admin_password,
                 network_info)
 
-            profile = self.client.profiles.get(instance.name)
+            profile = common.get_profile(self.client, instance)
             config_drive = {
                 'configdrive': {
                     'path': '/config-drive',
@@ -606,13 +606,12 @@ class LXDDriver(driver.ComputeDriver):
         information.
         """
         try:
-            container = self.client.containers.get(instance.name)
+            container = common.get_container(self.client, instance)
             if container.status != 'Stopped':
                 container.stop(wait=True)
             container.delete(wait=True)
             if (instance.vm_state == vm_states.RESCUED):
-                rescued_container = self.client.containers.get(
-                    '%s-rescue' % instance.name)
+                rescued_container = get_rescue_container(self.client, instance)
                 if rescued_container.status != 'Stopped':
                     rescued_container.stop(wait=True)
                 rescued_container.delete(wait=True)
@@ -654,7 +653,7 @@ class LXDDriver(driver.ComputeDriver):
             shutil.rmtree(container_dir)
 
         try:
-            self.client.profiles.get(instance.name).delete()
+            common.get_profile(self.client, instance).delete()
         except lxd_exceptions.LXDAPIException as e:
             if e.response.status_code == 404:
                 LOG.warning('Failed to delete instance. '
@@ -674,7 +673,7 @@ class LXDDriver(driver.ComputeDriver):
         See `nova.virt.driver.ComputeDriver.cleanup` for more
         information.
         """
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         container.restart(force=True, wait=True)
 
     def get_console_output(self, context, instance):
@@ -715,7 +714,7 @@ class LXDDriver(driver.ComputeDriver):
         See `nova.virt.driver.ComputeDriver.attach_volume' for
         more information/
         """
-        profile = self.client.profiles.get(instance.name)
+        profile = common.get_profile(self.client, instance)
         protocol = connection_info['driver_volume_type']
         storage_driver = brick_get_connector(protocol)
         device_info = storage_driver.connect_volume(
@@ -748,7 +747,7 @@ class LXDDriver(driver.ComputeDriver):
         See `nova.virt.driver.Computedriver.detach_volume` for
         more information.
         """
-        profile = self.client.profiles.get(instance.name)
+        profile = common.get_profile(self.client, instance)
         vol_id = connection_info['data']['volume_id']
         if vol_id in profile.devices:
             del profile.devices[vol_id]
@@ -762,7 +761,7 @@ class LXDDriver(driver.ComputeDriver):
         self.vif_driver.plug(instance, vif)
         self.firewall_driver.setup_basic_filtering(instance, vif)
 
-        profile = self.client.profiles.get(instance.name)
+        profile = common.get_profile(self.client, instance)
 
         net_device = lxd_vif.get_vif_devname(vif)
         config_update = {
@@ -778,7 +777,7 @@ class LXDDriver(driver.ComputeDriver):
         profile.save(wait=True)
 
     def detach_interface(self, context, instance, vif):
-        profile = self.client.profiles.get(instance.name)
+        profile = common.get_profile(self.client, instance)
         devname = lxd_vif.get_vif_devname(vif)
 
         # NOTE(jamespage): Attempt to remove device using
@@ -810,7 +809,7 @@ class LXDDriver(driver.ComputeDriver):
             flavor.to_profile(
                 self.client, instance, network_info, block_device_info,
                 update=True)
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         container.stop(wait=True)
         return ''
 
@@ -823,7 +822,7 @@ class LXDDriver(driver.ComputeDriver):
 
             update_task_state(task_state=task_states.IMAGE_PENDING_UPLOAD)
 
-            container = self.client.containers.get(instance.name)
+            container = common.get_container(self.client, instance)
             if container.status != 'Stopped':
                 container.stop(wait=True)
             image = container.publish(wait=True)
@@ -846,7 +845,7 @@ class LXDDriver(driver.ComputeDriver):
         See `nova.virt.driver.ComputeDriver.pause` for more
         information.
         """
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         container.freeze(wait=True)
 
     def unpause(self, instance):
@@ -855,7 +854,7 @@ class LXDDriver(driver.ComputeDriver):
         See `nova.virt.driver.ComputeDriver.unpause` for more
         information.
         """
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         container.unfreeze(wait=True)
 
     def suspend(self, context, instance):
@@ -910,12 +909,12 @@ class LXDDriver(driver.ComputeDriver):
         """
         rescue = '%s-rescue' % instance.name
 
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         container_rootfs = os.path.join(
             nova.conf.CONF.lxd.root_dir, 'containers', instance.name, 'rootfs')
         container.rename(rescue, wait=True)
 
-        profile = self.client.profiles.get(instance.name)
+        profile = common.get_profile(self.client, instance)
 
         rescue_dir = {
             'rescue': {
@@ -950,18 +949,16 @@ class LXDDriver(driver.ComputeDriver):
         See 'nova.virt.drvier.ComputeDriver.unrescue` for more
         information.
         """
-        rescue = '%s-rescue' % instance.name
-
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         if container.status != 'Stopped':
             container.stop(wait=True)
         container.delete(wait=True)
 
-        profile = self.client.profiles.get(instance.name)
+        profile = common.get_profile(self.client, instance)
         del profile.devices['rescue']
         profile.save()
 
-        container = self.client.containers.get(rescue)
+        container = get_rescue_container(self.client, instance)
         container.rename(instance.name, wait=True)
         container.start(wait=True)
 
@@ -971,7 +968,7 @@ class LXDDriver(driver.ComputeDriver):
         See 'nova.virt.drvier.ComputeDriver.power_off` for more
         information.
         """
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         if container.status != 'Stopped':
             container.stop(wait=True)
 
@@ -982,7 +979,7 @@ class LXDDriver(driver.ComputeDriver):
         See 'nova.virt.drvier.ComputeDriver.power_on` for more
         information.
         """
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         if container.status != 'Running':
             container.start(wait=True)
 
@@ -1132,17 +1129,17 @@ class LXDDriver(driver.ComputeDriver):
 
         # Step 3 - Start the network and container
         self.plug_vifs(instance, network_info)
-        self.client.containers.get(instance.name).start(wait=True)
+        common.get_container(self.client, instance).start(wait=True)
 
     def confirm_migration(self, context, migration, instance, network_info):
         self.unplug_vifs(instance, network_info)
 
-        self.client.containers.get(instance.name).delete(wait=True)
-        self.client.profiles.get(instance.name).delete()
+        common.get_container(self.client, instance).delete(wait=True)
+        common.get_profile(self.client, instance).delete()
 
     def finish_revert_migration(self, context, instance, network_info,
                                 block_device_info=None, power_on=True):
-        self.client.containers.get(instance.name).start(wait=True)
+        common.get_container(self.client, instance).start(wait=True)
 
     def pre_live_migration(self, context, instance, block_device_info,
                            network_info, disk_info, migrate_data=None):
@@ -1166,17 +1163,17 @@ class LXDDriver(driver.ComputeDriver):
 
     def post_live_migration(self, context, instance, block_device_info,
                             migrate_data=None):
-        self.client.containers.get(instance.name).delete(wait=True)
+        common.get_container(self.client, instance).delete(wait=True)
 
     def post_live_migration_at_source(self, context, instance, network_info):
-        self.client.profiles.get(instance.name).delete()
+        common.get_profile(self.client, instance).delete()
         self.cleanup(context, instance, network_info)
 
     def check_can_live_migrate_destination(
             self, context, instance, src_compute_info, dst_compute_info,
             block_migration=False, disk_over_commit=False):
         try:
-            self.client.containers.get(instance.name)
+            common.get_container(self.client, instance)
             raise exception.InstanceExists(name=instance.name)
         except lxd_exceptions.LXDAPIException as e:
             if e.response.status_code != 404:
@@ -1209,7 +1206,7 @@ class LXDDriver(driver.ComputeDriver):
             raise exception.ConfigDriveUnsupportedFormat(
                 format=CONF.config_drive_format)
 
-        container = self.client.containers.get(instance.name)
+        container = common.get_container(self.client, instance)
         storage_id = 0
         """
         Determine UID shift used for container uid mapping
@@ -1326,7 +1323,7 @@ class LXDDriver(driver.ComputeDriver):
         """Migrate an instance from source."""
         source_client = pylxd.Client(
             endpoint='https://{}:8443'.format(source_host), verify=False)
-        container = source_client.containers.get(instance.name)
+        container = common.get_container(source_client, instance)
         data = container.generate_migration_data()
 
         self.client.containers.create(data, wait=True)

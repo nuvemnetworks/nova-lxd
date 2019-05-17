@@ -227,7 +227,7 @@ def to_profile(client, instance, network_info, block_info, update=False):
             devices.update(new)
 
     if update is True:
-        profile = client.profiles.get(name)
+        profile = get_profile(client, instance)
         profile.devices = devices
         profile.config = config
         profile.save()
